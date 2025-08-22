@@ -3,6 +3,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
 from app.routes import robot_statements
+from app.routes import robot_players
 from app.core.database import engine_realtime, engine_dataplayer, BaseRealtime, BaseDataplayer
 from app.schemas.response import ResponseDto
 
@@ -22,7 +23,7 @@ BaseDataplayer.metadata.create_all(bind=engine_dataplayer)
 # Include Routers
 # ----------------------------
 app.include_router(robot_statements.router)
-
+app.include_router(robot_players.router)
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
