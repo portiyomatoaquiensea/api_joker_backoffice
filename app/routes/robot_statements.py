@@ -1,12 +1,14 @@
 
+from datetime import datetime
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.core.database import get_dataplayer_db, get_realtime_db
-from app.models.dataplayer_models import DwJkBackofficeStatement, DwPlayerAccount, DwDownline
+from app.models.dataplayer_models import DwBonusSetting, DwJkBackofficeStatement, DwPlayerAccount, DwDownline, DwPlayerAccountTransaction, DwPlayerDailyReport, DwPlayerDashboard, DwSystemBalance, DwSystemBalanceTransaction
 from app.models.realtime_models import DwRobotStatement
 from app.schemas.robot_statements import JokerInsertStatementDto
 from app.core.security import get_current_token
 from app.schemas.response import ResponseDto
+from sqlalchemy.exc import SQLAlchemyError
 
 router = APIRouter()
 
@@ -30,6 +32,7 @@ def joker_insert_statement(
     if not downline:
         return ResponseDto.error(message="Downline Not Found", statusCode=404, data=[])
 
+    requestBy = dto.requestBy
     # 3. Prepare backoffice statement
     new_backoffice = DwJkBackofficeStatement(
         date_time=dto.dateTime,
@@ -38,7 +41,7 @@ def joker_insert_statement(
         related_username=dto.relatedUsername,
         action=dto.action,
         currency=dto.currency,
-        request_by=dto.requestBy,
+        request_by=requestBy,
         username=dto.username,
     )
 
@@ -57,11 +60,34 @@ def joker_insert_statement(
         transaction_date=dto.dateTime,
         amount=abs(float(dto.amount)),
     )
+    
+    date = (
+        datetime.strptime(dto.dateTime, "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%d")
+        if isinstance(dto.dateTime, str)
+        else dto.dateTime.strftime("%Y-%m-%d")
+    )
 
     # 5. Check if player exists
     player = db_dataplayer.query(DwPlayerAccount).filter_by(
-        downline_code=dto.requestBy, player_name=dto.username
+        wb_id=downline.wb_id,
+        wb_code=downline.wb_code,
+        downline_id=downline.id,
+        downline_code=downline.code,
+        player_name=dto.username
     ).first()
+
+    bonus_setting = db_dataplayer.query(DwBonusSetting).filter_by(
+        wb_id=downline.wb_id,
+        wb_code=downline.wb_code,
+        downline_id=downline.id,
+        downline_code=downline.code,
+        backoffice_user=requestBy,
+        active=True
+    ).first()
+
+    if bonus_setting:
+        new_robot.transaction_type = "BONUS"
+        new_robot.transaction_status = "APPROVED"
 
     if player:
         new_robot.player_name = player.player_name
@@ -73,11 +99,138 @@ def joker_insert_statement(
         new_robot.player_account_id = player.id
         new_robot.player_code = player.player_code
 
-    # 6. Save both
-    db_dataplayer.add(new_backoffice)
-    db_dataplayer.commit()
+        if bonus_setting:
+            system_balance = db_dataplayer.query(DwSystemBalance).filter_by(
+                wb_id=downline.wb_id,
+                wb_code=downline.wb_code,
+                downline_id=downline.id,
+                downline_code=downline.code,
+            ).first()
+            if not system_balance:
+                return ResponseDto.error(message="Downline Not Found", statusCode=404, data=[])
+            
+            available_system_balance = system_balance.available_balance
+            end_system_balance = system_balance.available_balance - abs(dto.amount)
+            
+            #Robot USER ID
+            ROBOTUSERID = 41
+            new_system_balance_transaction = DwSystemBalanceTransaction(
+                system_balance_id=system_balance.id,
+                wb_id=downline.wb_id,
+                wb_code=downline.wb_code,
+                user_id=ROBOTUSERID,
+                downline_id=downline.id,
+                downline_code=downline.code,
+                amount=abs(dto.amount),
+                transaction_type="BONUS",
+                begin_balance=available_system_balance,
+                last_balance=end_system_balance,
+                transaction_date=date
+            )
 
-    db_realtime.add(new_robot)
-    db_realtime.commit()
+            player_balance = player.balance
+            end_player_balance = player.balance + abs(dto.amount)
+            new_player_account_transaction = DwPlayerAccountTransaction(
+                wb_id=downline.wb_id,
+                wb_code=downline.wb_code,
+                user_id=ROBOTUSERID,
+                downline_id=downline.id,
+                downline_code=downline.code,
+                player_account_id=player.id,
+                player_code=player.player_code,
+                player_name=player.player_name,
+                amount=abs(dto.amount),
+                begin_balance=player_balance,
+                last_balance=end_player_balance,
+                transaction_type="BONUS",
+                transaction_action="APPROVED",
+                transaction_date=date
+            )
+            
+            try:
+                # update player balance
+                player.balance += abs(dto.amount)
+                # update system balance
+                system_balance.available_balance = available_system_balance - abs(dto.amount)
+
+                db_dataplayer.add(new_player_account_transaction)
+                db_dataplayer.add(new_system_balance_transaction)
+                db_dataplayer.commit()
+            except SQLAlchemyError as e:
+                db_dataplayer.rollback()
+                return ResponseDto.error(message=f"Failed to create player transaction: {str(e)}", statusCode=500, data=[])
+
+            find_player_dashboard = db_dataplayer.query(DwPlayerDashboard).filter_by(
+                wb_id=downline.wb_id,
+                wb_code=downline.wb_code,
+                downline_id=downline.id,
+                downline_code=downline.code,
+                historical_date=date
+            ).first()
+
+            if find_player_dashboard:
+                find_player_dashboard.total_bonus_amount += abs(dto.amount)
+                try:
+                    db_dataplayer.commit()
+                except SQLAlchemyError as e:
+                    db_dataplayer.rollback()
+                    return ResponseDto.error(message=f"Failed to update player dashboard: {str(e)}", statusCode=500, data=[])
+            else:
+                new_player_dashboard = DwPlayerDashboard(
+                    wb_id=downline.wb_id,
+                    wb_code=downline.wb_code,
+                    downline_id=downline.id,
+                    downline_code=downline.code,
+                    historical_date=date,
+                    total_bonus_amount=abs(dto.amount)
+                )
+                try:
+                    db_dataplayer.add(new_player_dashboard)
+                    db_dataplayer.commit()
+                except SQLAlchemyError as e:
+                    db_dataplayer.rollback()
+                    return ResponseDto.error(message=f"Failed to create player dashboard: {str(e)}", statusCode=500, data=[])
+                
+            find_player_daily_report = db_dataplayer.query(DwPlayerDailyReport).filter_by(
+                wb_id=downline.wb_id,
+                wb_code=downline.wb_code,
+                downline_id=downline.id,
+                downline_code=downline.code,
+                report_date=date
+            ).first()
+            
+            if find_player_daily_report:
+                find_player_daily_report.total_bonus_amount += abs(dto.amount)
+                try:
+                    db_dataplayer.commit()
+                except SQLAlchemyError as e:
+                    db_dataplayer.rollback()
+                    return ResponseDto.error(message=f"Failed to update player daily report: {str(e)}", statusCode=500, data=[])
+            else:
+                new_player_dashboard = DwPlayerDailyReport(
+                    wb_id=downline.wb_id,
+                    wb_code=downline.wb_code,
+                    downline_id=downline.id,
+                    downline_code=downline.code,
+                    report_date=date,
+                    total_bonus_amount=abs(dto.amount)
+                )
+                try:
+                    db_dataplayer.add(new_player_dashboard)
+                    db_dataplayer.commit()
+                except SQLAlchemyError as e:
+                    db_dataplayer.rollback()
+                    return ResponseDto.error(message=f"Failed to create player dashboard: {str(e)}", statusCode=500, data=[])
+
+    # 6. Save both
+    try:
+        db_dataplayer.add(new_backoffice)
+        db_realtime.add(new_robot)
+        db_dataplayer.commit()
+        db_realtime.commit()
+    except SQLAlchemyError as e:
+        db_dataplayer.rollback()
+        db_realtime.rollback()
+        return ResponseDto.error(message=f"Failed to Statement inserted: {str(e)}", statusCode=500, data=[])
 
     return ResponseDto.success(data={"requestId": dto.requestId}, message="Statement inserted successfully")

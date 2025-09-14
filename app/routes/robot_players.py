@@ -166,7 +166,8 @@ def update_robot_member(
             wb_code=wb_code,
             downline_id=downline_id,
             downline_code=downline_code,
-            historical_date=register_date
+            historical_date=register_date,
+            total_register=1
         )
         try:
             db_dataplayer.add(new_player_dashboard)
