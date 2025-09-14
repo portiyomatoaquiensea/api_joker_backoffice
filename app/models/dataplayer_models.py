@@ -201,3 +201,29 @@ class DwPlayerDashboard(BaseDataplayer):
             "created": self.created.isoformat() if self.created else None,
             "modified": self.modified.isoformat() if self.modified else None,
         }
+    
+class DwBonusSetting(BaseDataplayer):
+    __tablename__ = "dw_bonus_settings"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    wb_id = Column(Integer, nullable=False)
+    wb_code = Column(String(50), nullable=False)
+    downline_id = Column(Integer, nullable=False)
+    downline_code = Column(String(50), nullable=False)
+    backoffice_user = Column(String(10), nullable=False)
+    active = Column(Boolean, nullable=False, server_default="false")
+    created = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    modified = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "wb_id": self.wb_id,
+            "wb_code": self.wb_code,
+            "downline_id": self.downline_id,
+            "downline_code": self.downline_code,
+            "backoffice_user": self.backoffice_user,
+            "active": self.active,
+            "created": self.created,
+            "modified": self.modified
+        }

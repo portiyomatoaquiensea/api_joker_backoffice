@@ -56,5 +56,5 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 # ----------------------------
 @app.get("/")
 def root():
-    return {"message": "Multi-DB FastAPI Project is running!"}
+    return {"message": "Wooden Snake Bot Api is running!"}
 
