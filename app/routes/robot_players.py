@@ -13,6 +13,11 @@ from sqlalchemy.exc import SQLAlchemyError
 
 router = APIRouter()
 
+def parse_datetime(value: str):
+    if value and value.strip() != "":
+        return datetime.fromisoformat(value)  # or use your string format
+    return None
+
 @router.post("/dw/robot/get/member", tags=["Robot Get Member"])
 def get_robot_member(
     dto: RobotGetMemberDto,
@@ -65,8 +70,8 @@ def update_robot_member(
         find_robot_member.firstname = first_name
         find_robot_member.lastname = last_name
         find_robot_member.type = member_type
-        find_robot_member.created_time = created_time
-        find_robot_member.last_login = last_login
+        find_robot_member.created_time = parse_datetime(created_time)
+        find_robot_member.last_login = parse_datetime(last_login)
         find_robot_member.login_ip = login_ip
         find_robot_member.robot_status = True
 
