@@ -215,6 +215,8 @@ class DwBonusSetting(BaseDataplayer):
     downline_id = Column(Integer, nullable=False)
     downline_code = Column(String(50), nullable=False)
     backoffice_user = Column(String(10), nullable=False)
+    backoffice_type = Column(String(50), nullable=True)
+    backoffice_account_type = Column(String(50), nullable=True)
     active = Column(Boolean, nullable=False, server_default="false")
     created = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     modified = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
@@ -227,6 +229,8 @@ class DwBonusSetting(BaseDataplayer):
             "downline_id": self.downline_id,
             "downline_code": self.downline_code,
             "backoffice_user": self.backoffice_user,
+            "backoffice_type": self.backoffice_type,
+            "backoffice_account_type": self.backoffice_account_type,
             "active": self.active,
             "created": self.created,
             "modified": self.modified

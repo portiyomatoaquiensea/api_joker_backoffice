@@ -12,4 +12,4 @@ Railway needs to know how to run FastAPI:
 uvicorn app.main:app --host 0.0.0.0 --port $PORT
 
 Local run
-uvicorn app.main:app --reload
+python -m uvicorn app.main:app --reload
