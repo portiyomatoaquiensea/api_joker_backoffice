@@ -30,9 +30,8 @@ def joker_insert_statement(
     # 2. Validate downline
     # downline = db_dataplayer.query(DwDownline).filter_by(code=dto.downlineCode).first()
     bot_account = db_dataplayer.query(DwBonusSetting).filter_by(
-        downline_code=dto.downlineCode,
+        backoffice_user=dto.requestBy,
         backoffice_type='JOKER123',
-        backoffice_account_type ='DEPOSIT/WITHDRAW',
         active=True
     ).first()
     
@@ -88,20 +87,10 @@ def joker_insert_statement(
         downline_code=downline_code,
         player_name=dto.username
     ).first()
-
-    bonus_setting = db_dataplayer.query(DwBonusSetting).filter_by(
-        wb_id=downline_wb_id,
-        wb_code=downline_wb_code,
-        downline_id=downline_id,
-        downline_code=downline_code,
-        backoffice_user=requestBy,
-        backoffice_type='JOKER123',
-        active=True
-    ).first()
     
-    if bonus_setting:
-        if bonus_setting.backoffice_account_type in ['CASHBACK', 'BONUS']:
-            new_robot.transaction_type = bonus_setting.backoffice_account_type
+    if bot_account:
+        if bot_account.backoffice_account_type in ['CASHBACK', 'BONUS']:
+            new_robot.transaction_type = bot_account.backoffice_account_type
             new_robot.transaction_status = "APPROVED"
 
     if player:
@@ -114,8 +103,8 @@ def joker_insert_statement(
         new_robot.player_account_id = player.id
         new_robot.player_code = player.player_code
 
-        if bonus_setting:
-            if bonus_setting.backoffice_account_type in ['CASHBACK', 'BONUS']:
+        if bot_account:
+            if bot_account.backoffice_account_type in ['CASHBACK', 'BONUS']:
                 system_balance = db_dataplayer.query(DwSystemBalance).filter_by(
                     wb_id=downline_wb_id,
                     wb_code=downline_wb_code,
@@ -138,7 +127,7 @@ def joker_insert_statement(
                     downline_id=downline_id,
                     downline_code=downline_code,
                     amount=abs(dto.amount),
-                    transaction_type=bonus_setting.backoffice_account_type,
+                    transaction_type=bot_account.backoffice_account_type,
                     begin_balance=available_system_balance,
                     last_balance=end_system_balance,
                     transaction_date=date
@@ -158,7 +147,7 @@ def joker_insert_statement(
                     amount=abs(dto.amount),
                     begin_balance=player_balance,
                     last_balance=end_player_balance,
-                    transaction_type=bonus_setting.backoffice_account_type,
+                    transaction_type=bot_account.backoffice_account_type,
                     transaction_action="APPROVED",
                     transaction_date=date
                 )

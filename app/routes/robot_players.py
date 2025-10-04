@@ -27,7 +27,6 @@ def get_robot_member(
     bot_account = db_dataplayer.query(DwBonusSetting).filter_by(
         downline_code=dto.downlineCode,
         backoffice_type='JOKER123',
-        backoffice_account_type ='DEPOSIT/WITHDRAW',
         active=True
     ).first()
 

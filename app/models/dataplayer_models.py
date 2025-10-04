@@ -214,7 +214,7 @@ class DwBonusSetting(BaseDataplayer):
     wb_code = Column(String(50), nullable=False)
     downline_id = Column(Integer, nullable=False)
     downline_code = Column(String(50), nullable=False)
-    backoffice_user = Column(String(10), nullable=False)
+    backoffice_user = Column(String(50), nullable=False)
     backoffice_type = Column(String(50), nullable=True)
     backoffice_account_type = Column(String(50), nullable=True)
     active = Column(Boolean, nullable=False, server_default="false")
