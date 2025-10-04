@@ -28,10 +28,22 @@ def joker_insert_statement(
         return ResponseDto.error(message="Already Taken", statusCode=404, data=[])
 
     # 2. Validate downline
-    downline = db_dataplayer.query(DwDownline).filter_by(code=dto.downlineCode).first()
-    if not downline:
-        return ResponseDto.error(message="Downline Not Found", statusCode=404, data=[])
-
+    # downline = db_dataplayer.query(DwDownline).filter_by(code=dto.downlineCode).first()
+    bot_account = db_dataplayer.query(DwBonusSetting).filter_by(
+        downline_code=dto.downlineCode,
+        backoffice_type='JOKER123',
+        backoffice_account_type ='DEPOSIT/WITHDRAW',
+        active=True
+    ).first()
+    
+    if not bot_account:
+        return ResponseDto.error(message="Bot Account Is Not Found", statusCode=404, data=[])
+    
+    downline_wb_id = bot_account.wb_id
+    downline_wb_code = bot_account.wb_code
+    downline_id = bot_account.downline_id
+    downline_code = bot_account.downline_code
+    
     requestBy = dto.requestBy
     # 3. Prepare backoffice statement
     new_backoffice = DwJkBackofficeStatement(
@@ -39,6 +51,7 @@ def joker_insert_statement(
         amount=dto.amount,
         request_id=dto.requestId,
         related_username=dto.relatedUsername,
+
         action=dto.action,
         currency=dto.currency,
         request_by=requestBy,
@@ -47,10 +60,10 @@ def joker_insert_statement(
 
     # 4. Prepare robot statement
     new_robot = DwRobotStatement(
-        wb_id=downline.wb_id,
-        wb_code=downline.wb_code,
-        downline_id=downline.id,
-        downline_code=downline.code,
+        wb_id=downline_wb_id,
+        wb_code=downline_wb_code,
+        downline_id=downline_id,
+        downline_code=downline_code,
         player_name=dto.username,
         player_status="NEW_PLAYER",
         transaction_type="DEPOSIT" if dto.action.upper() != "WITHDRAW" else "WITHDRAW",
@@ -69,18 +82,18 @@ def joker_insert_statement(
 
     # 5. Check if player exists
     player = db_dataplayer.query(DwPlayerAccount).filter_by(
-        wb_id=downline.wb_id,
-        wb_code=downline.wb_code,
-        downline_id=downline.id,
-        downline_code=downline.code,
+        wb_id=downline_wb_id,
+        wb_code=downline_wb_code,
+        downline_id=downline_id,
+        downline_code=downline_code,
         player_name=dto.username
     ).first()
 
     bonus_setting = db_dataplayer.query(DwBonusSetting).filter_by(
-        wb_id=downline.wb_id,
-        wb_code=downline.wb_code,
-        downline_id=downline.id,
-        downline_code=downline.code,
+        wb_id=downline_wb_id,
+        wb_code=downline_wb_code,
+        downline_id=downline_id,
+        downline_code=downline_code,
         backoffice_user=requestBy,
         backoffice_type='JOKER123',
         active=True
@@ -104,10 +117,10 @@ def joker_insert_statement(
         if bonus_setting:
             if bonus_setting.backoffice_account_type in ['CASHBACK', 'BONUS']:
                 system_balance = db_dataplayer.query(DwSystemBalance).filter_by(
-                    wb_id=downline.wb_id,
-                    wb_code=downline.wb_code,
-                    downline_id=downline.id,
-                    downline_code=downline.code,
+                    wb_id=downline_wb_id,
+                    wb_code=downline_wb_code,
+                    downline_id=downline_id,
+                    downline_code=downline_code,
                 ).first()
                 if not system_balance:
                     return ResponseDto.error(message="Downline Not Found", statusCode=404, data=[])
@@ -119,11 +132,11 @@ def joker_insert_statement(
                 ROBOTUSERID = 41
                 new_system_balance_transaction = DwSystemBalanceTransaction(
                     system_balance_id=system_balance.id,
-                    wb_id=downline.wb_id,
-                    wb_code=downline.wb_code,
+                    wb_id=downline_wb_id,
+                    wb_code=downline_wb_code,
                     user_id=ROBOTUSERID,
-                    downline_id=downline.id,
-                    downline_code=downline.code,
+                    downline_id=downline_id,
+                    downline_code=downline_code,
                     amount=abs(dto.amount),
                     transaction_type=bonus_setting.backoffice_account_type,
                     begin_balance=available_system_balance,
@@ -134,11 +147,11 @@ def joker_insert_statement(
                 player_balance = player.balance
                 end_player_balance = player.balance + abs(dto.amount)
                 new_player_account_transaction = DwPlayerAccountTransaction(
-                    wb_id=downline.wb_id,
-                    wb_code=downline.wb_code,
+                    wb_id=downline_wb_id,
+                    wb_code=downline_wb_code,
                     user_id=ROBOTUSERID,
-                    downline_id=downline.id,
-                    downline_code=downline.code,
+                    downline_id=downline_id,
+                    downline_code=downline_code,
                     player_account_id=player.id,
                     player_code=player.player_code,
                     player_name=player.player_name,
@@ -164,10 +177,10 @@ def joker_insert_statement(
                     return ResponseDto.error(message=f"Failed to create player transaction: {str(e)}", statusCode=500, data=[])
 
                 find_player_dashboard = db_dataplayer.query(DwPlayerDashboard).filter_by(
-                    wb_id=downline.wb_id,
-                    wb_code=downline.wb_code,
-                    downline_id=downline.id,
-                    downline_code=downline.code,
+                    wb_id=downline_wb_id,
+                    wb_code=downline_wb_code,
+                    downline_id=downline_id,
+                    downline_code=downline_code,
                     historical_date=date
                 ).first()
 
@@ -180,10 +193,10 @@ def joker_insert_statement(
                         return ResponseDto.error(message=f"Failed to update player dashboard: {str(e)}", statusCode=500, data=[])
                 else:
                     new_player_dashboard = DwPlayerDashboard(
-                        wb_id=downline.wb_id,
-                        wb_code=downline.wb_code,
-                        downline_id=downline.id,
-                        downline_code=downline.code,
+                        wb_id=downline_wb_id,
+                        wb_code=downline_wb_code,
+                        downline_id=downline_id,
+                        downline_code=downline_code,
                         historical_date=date,
                         total_bonus_amount=abs(dto.amount)
                     )
@@ -195,10 +208,10 @@ def joker_insert_statement(
                         return ResponseDto.error(message=f"Failed to create player dashboard: {str(e)}", statusCode=500, data=[])
                     
                 find_player_daily_report = db_dataplayer.query(DwPlayerDailyReport).filter_by(
-                    wb_id=downline.wb_id,
-                    wb_code=downline.wb_code,
-                    downline_id=downline.id,
-                    downline_code=downline.code,
+                    wb_id=downline_wb_id,
+                    wb_code=downline_wb_code,
+                    downline_id=downline_id,
+                    downline_code=downline_code,
                     report_date=date
                 ).first()
             
@@ -211,10 +224,10 @@ def joker_insert_statement(
                         return ResponseDto.error(message=f"Failed to update player daily report: {str(e)}", statusCode=500, data=[])
                 else:
                     new_player_dashboard = DwPlayerDailyReport(
-                        wb_id=downline.wb_id,
-                        wb_code=downline.wb_code,
-                        downline_id=downline.id,
-                        downline_code=downline.code,
+                        wb_id=downline_wb_id,
+                        wb_code=downline_wb_code,
+                        downline_id=downline_id,
+                        downline_code=downline_code,
                         report_date=date,
                         total_bonus_amount=abs(dto.amount)
                     )

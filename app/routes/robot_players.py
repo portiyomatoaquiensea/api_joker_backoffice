@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.core.database import get_dataplayer_db, get_realtime_db
-from app.models.dataplayer_models import DwPlayerAccount, DwPlayerDashboard, DwPlayerHistoricalTransaction, DwRobotBackofficeMember
+from app.models.dataplayer_models import DwBonusSetting, DwPlayerAccount, DwPlayerDashboard, DwPlayerHistoricalTransaction, DwRobotBackofficeMember
 from app.schemas.robot_get_members import RobotGetMemberDto
 from app.core.security import get_current_token
 from app.schemas.response import ResponseDto
@@ -24,7 +24,17 @@ def get_robot_member(
     token: str = Depends(get_current_token),
     db_dataplayer: Session = Depends(get_dataplayer_db)
 ):
-    downline_code = dto.downlineCode
+    bot_account = db_dataplayer.query(DwBonusSetting).filter_by(
+        downline_code=dto.downlineCode,
+        backoffice_type='JOKER123',
+        backoffice_account_type ='DEPOSIT/WITHDRAW',
+        active=True
+    ).first()
+
+    if not bot_account:
+        return ResponseDto.error(message="Bot Account Is Not Found", statusCode=404, data=[])
+    
+    downline_code = bot_account.downline_code
     find_robot_member = db_dataplayer.query(DwRobotBackofficeMember).filter_by(
         downline_code=downline_code,
         robot_status=False
@@ -43,8 +53,18 @@ def update_robot_member(
     token: str = Depends(get_current_token),
     db_dataplayer: Session = Depends(get_dataplayer_db)
 ):
+    bot_account = db_dataplayer.query(DwBonusSetting).filter_by(
+        downline_code=dto.downlineCode,
+        backoffice_type='JOKER123',
+        backoffice_account_type ='DEPOSIT/WITHDRAW',
+        active=True
+    ).first()
+
+    if not bot_account:
+        return ResponseDto.error(message="Bot Account Is Not Found", statusCode=404, data=[])
     # Extract values from DTO
-    downline_code = dto.downlineCode
+    downline_code = bot_account.downline_code
+
     username = dto.username
     nickname = dto.nickname
     member_type = dto.type
